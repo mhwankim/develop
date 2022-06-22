@@ -1,0 +1,69 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from pykrx import stock
+from datetime import datetime, timedelta
+
+today = datetime.today()
+delta = timedelta(days=365)
+srt_de = today - delta
+
+today = today.strftime("%Y-%m-%d")
+srt_de = srt_de.strftime("%Y-%m-%d")
+directory = "C:/Users/82107/Documents/dart/program2/"
+
+#%%
+df_KOSPI = df = stock.get_index_ohlcv(srt_de, today, "1001")["종가"]
+df_KOSPI = df_KOSPI/df_KOSPI[0]
+df_KOSDAQ = df = stock.get_index_ohlcv(srt_de, today, "2001")["종가"]
+df_KOSDAQ = df_KOSDAQ/df_KOSDAQ[0]
+df_KRX = (df_KOSDAQ + df_KOSPI)/2
+
+#%%
+df_data = pd.read_csv(directory + "cd2.csv")[["0","1","2","3"]]
+for idx in df_data.index:
+    group = df_data.iloc[idx]
+    #print(group)
+    for cd in group:
+        if str(cd)[0] == "[":
+            cd = cd.strip("[]")
+            globals()["df_{}".format(cd)] = stock.get_market_ohlcv(srt_de, today, cd)["종가"]
+            globals()["df_{}".format(cd)] = globals()["df_{}".format(cd)]/globals()["df_{}".format(cd)][0]
+    
+#%%
+def cnvt_cdmn(stk_cd):
+    stk_nm = stock.get_market_ticker_name(stk_cd)
+    return stk_nm
+
+def calculate_lst(group):
+    nm_lst = []
+    df_temp = pd.Series(dtype = "float64")
+    for i, cd in enumerate(group):
+        if i == 0:
+            df_temp =  globals()["df_{}".format(cd)]
+            #print(df_temp)
+        else:
+            df_temp = df_temp + globals()["df_{}".format(cd)]
+            #print(df_temp)
+        nm_lst.append(cnvt_cdmn(cd))
+    df_avg = df_temp/int(i+1)
+    fig = plt.plot(df_avg.index, df_avg.to_list())
+
+    return df_avg, nm_lst, group
+
+#%%
+os.chdir("C:/Users/82107/Documents/dart/program2/graph")    
+
+#%%
+for idx in df_data.index:
+    group = df_data.iloc[idx]
+    group_lst = []
+    for cd in group:
+        if str(cd)[0] == "[":
+            cd = cd.strip("[]")
+            group_lst.append(cd)
+    df_avg, nm_lst, group = calculate_lst(group_lst)
+    plt.plot(df_KRX.index, df_KRX.to_list(), "k")
+    plt.plot(df_avg.index, df_avg.to_list(), 'c')
+    plt.title(nm_lst)
+    plt.savefig("{}.png".format(idx), dpi = 200, bbox_inches='tight')
+    plt.show()
