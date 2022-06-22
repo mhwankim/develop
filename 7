@@ -1,0 +1,32 @@
+import pandas as pd
+
+#%%
+kospi_tickers = stock.get_market_ticker_list(today, market = "KOSPI")
+kosdaq_tickers = stock.get_market_ticker_list(today, market = "KOSDAQ")
+tickers = kospi_tickers + kosdaq_tickers
+
+#%%
+def cnvt_cdmn(stk_cd):
+    stk_nm = stock.get_market_ticker_name(stk_cd)
+    return stk_nm
+
+#%%
+start = time.time()
+ticker_dict = {}
+for cd in tickers:
+    ticker_dict[cd] = cnvt_cdmn(cd)
+    print(cd)
+print(time.time()-start)
+
+#%%
+with open('mycsvfile.csv','w') as f:
+    w = csv.writer(f)
+    w.writerow(ticker_dict.keys())
+    w.writerow(ticker_dict.values())
+
+#%%
+
+with open('mycsvfile.csv', mode='r') as f:
+	reader = csv.DictReader(f)
+	for c in reader:
+		print(c)
