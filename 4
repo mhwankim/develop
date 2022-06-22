@@ -1,0 +1,112 @@
+import pandas as pd
+import os
+from datetime import datetime
+from pykrx import stock
+import time
+import csv
+
+srt_de = "2020-01-02"
+score_val = 0.55
+today = datetime.today()
+today = today.strftime("%Y-%m-%d")
+directory = "C:/Users/82107/Documents/dart/program2/"
+
+
+#%%
+kospi_tickers = stock.get_market_ticker_list(today, market = "KOSPI")
+kosdaq_tickers = stock.get_market_ticker_list(today, market = "KOSDAQ")
+tickers = kospi_tickers + kosdaq_tickers
+
+#%%
+def pretreat_df(DataFrame, srt_de):
+    for i, date in enumerate(DataFrame.index):
+        if date.strftime("%Y-%m-%d") == srt_de:
+            break
+
+    df = DataFrame[i:].copy()
+    df.reset_index(drop = False, inplace = True)
+
+    data_lst = []
+
+    for j in df.index:
+        if j == 0:
+            data_lst.append(int(0))
+        else:
+            if df.iloc[j-1]["종가"] > df.iloc[j]["종가"]:
+                data_lst.append(int(-1))
+            elif df.iloc[j-1]["종가"] > df.iloc[j]["종가"]:
+                data_lst.append(int(1))
+            else:
+                data_lst.append(int(0))
+    df["spl"] = data_lst
+    return df
+
+def correlation_score(DataFrame1, DataFrame2):
+    DataFrame_1 = DataFrame1["spl"]
+    DataFrame_2 = DataFrame2["spl"]
+    data_num = DataFrame_1.count()
+    mean_1 = DataFrame_1.mean()
+    mean_2 = DataFrame_2.mean()
+    sum = 0
+    for i, date in enumerate(DataFrame_1.index):
+        x_1 = DataFrame_1.iloc[i] - mean_1
+        x_2 = DataFrame_2.iloc[i] - mean_2
+        sum += x_1*x_2
+    mul_std = DataFrame_1.std()*DataFrame_2.std()
+    if mul_std != 0:
+        score = sum/mul_std
+    else:
+        score = 0
+    return score/data_num
+
+def return_group(tickers):
+    stock_group = []
+    tickers_lst = tickers
+    cnt = 0
+    print("Data 불러오는중...")
+    while len(tickers_lst) != 0:
+
+        print("count :", len(tickers_lst))
+        group_lst = []
+        error_lst = []
+        std_corp_cd = tickers_lst[0]
+        group_lst.append(std_corp_cd)
+        try:
+            globals()["df_{}".format(std_corp_cd)]
+        except:
+            globals()["df_{}".format(std_corp_cd)] = stock.get_market_ohlcv("20190101", today, std_corp_cd)
+            globals()["df_{}".format(std_corp_cd)] = pretreat_df(globals()["df_{}".format(std_corp_cd)], srt_de).copy()
+            cnt = cnt+1
+        df_1 = globals()["df_{}".format(std_corp_cd)].copy()
+
+        for cd in tickers_lst[1:]:
+
+            try:
+                globals()["df_{}".format(cd)]
+            except:
+                globals()["df_{}".format(cd)] = stock.get_market_ohlcv("20190101", today, cd)
+                globals()["df_{}".format(cd)] = pretreat_df(globals()["df_{}".format(cd)], srt_de).copy()
+                cnt = cnt+1
+
+            df_2 = globals()["df_{}".format(cd)].copy()
+            try:
+                if correlation_score(df_1, df_2) >= score_val:
+                    group_lst.append(cd)
+            except:
+                error_lst.append(cd)
+        if len(group_lst) >= 2:
+            stock_group.append(group_lst)
+            print(group_lst)
+
+        for used_cd in group_lst:
+            tickers_lst.remove(used_cd)
+    print(stock_group)
+    return stock_group
+
+
+#%%
+lst = return_group(tickers)
+
+with open(directory + "group.csv", 'w') as file:
+  writer = csv.writer(file)
+  writer.writerow(lst)
